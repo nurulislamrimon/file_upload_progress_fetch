@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Upload</title>
+  </head>
+  <body>
+    <form>
+      <input
+        type="file"
+        name="file"
+        id="file"
+        accept=".jpg, .png, .jpeg, .gif, .jfif"
+        onchange="handleChange(event)"
+      />
+      <button type="submit">Submit</button>
+    </form>
+
+    <script>
+      const formData = new FormData();
+
+      const handleChange = async (e) => {
+        formData.append("file", e.target.files[0]);
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        const file = document.getElementById("file").files[0];
+
+        const totalSize = file.size;
+        let uploadedSize = 0;
+
+        const stream = new ReadableStream({
+          start(controller) {
+            const reader = file.stream().getReader();
+
+            function read() {
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  controller.close();
+                  return;
+                }
+
+                uploadedSize += value.length;
+
+                const progress = Math.floor((uploadedSize / totalSize) * 100);
+
+                console.log(`Upload Progress: ${progress.toFixed(2)}%`);
+                controller.enqueue(value);
+                read();
+              });
+            }
+            read();
+          },
+        });
+
+        const res = await fetch(
+          "http://localhost:5000/api/v1/settings/footer",
+          {
+            method: "POST",
+            headers: {
+              authorization:
+                "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJlQjFOdjc2OXU4IiwiX2lkIjoiNjZiODQ1NzYyN2E4NmM1YTJhZjc1MTYzIiwiZnVsbE5hbWUiOiJOIEkgUmltb24iLCJyb2xlIjoiQWRtaW4iLCJlbWFpbCI6Im5pcmltb25wY0BnbWFpbC5jb20iLCJwaG9uZU51bWJlciI6IjAxNzE1NDk0ODQ2IiwiaXNWZXJpZmllZCI6dHJ1ZSwiaWF0IjoxNzIzMzUyNTEwLCJleHAiOjE3MjM0Mzg5MTB9.C2-BR3bMwWcQ5gG-4n6oYx02JMa2C9j4kOPaBvyKPt0",
+            },
+            body: formData,
+          }
+        );
+
+        const text = await res.text();
+        console.log("Raw response:", text);
+
+        let data;
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            console.error("Failed to parse JSON:", err);
+            console.log("Response was:", text);
+          }
+        } else {
+          console.log("No response body");
+        }
+
+        console.log(data);
+      };
+
+      document.querySelector("form").addEventListener("submit", handleSubmit);
+    </script>
+  </body>
+</html>
