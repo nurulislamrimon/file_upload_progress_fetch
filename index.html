@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>File Upload</title>
+    <title>File Upload with Abort</title>
   </head>
   <body>
     <form>
@@ -15,10 +15,12 @@
         onchange="handleChange(event)"
       />
       <button type="submit">Submit</button>
+      <button type="button" onclick="abortUpload()">Abort Upload</button>
     </form>
 
     <script>
       const formData = new FormData();
+      let abortController;
 
       const handleChange = async (e) => {
         formData.append("file", e.target.files[0]);
@@ -30,6 +32,9 @@
 
         const totalSize = file.size;
         let uploadedSize = 0;
+
+        abortController = new AbortController(); // Create an AbortController
+        const { signal } = abortController; // Get the signal from the AbortController
 
         const stream = new ReadableStream({
           start(controller) {
@@ -55,34 +60,49 @@
           },
         });
 
-        const res = await fetch(
-          "http://localhost:5000/api/v1/settings/footer",
-          {
-            method: "POST",
-            headers: {
-              authorization:
-                "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJlQjFOdjc2OXU4IiwiX2lkIjoiNjZiODQ1NzYyN2E4NmM1YTJhZjc1MTYzIiwiZnVsbE5hbWUiOiJOIEkgUmltb24iLCJyb2xlIjoiQWRtaW4iLCJlbWFpbCI6Im5pcmltb25wY0BnbWFpbC5jb20iLCJwaG9uZU51bWJlciI6IjAxNzE1NDk0ODQ2IiwiaXNWZXJpZmllZCI6dHJ1ZSwiaWF0IjoxNzIzMzUyNTEwLCJleHAiOjE3MjM0Mzg5MTB9.C2-BR3bMwWcQ5gG-4n6oYx02JMa2C9j4kOPaBvyKPt0",
-            },
-            body: formData,
-          }
-        );
+        try {
+          const res = await fetch(
+            "http://localhost:5000/api/v1/settings/footer",
+            {
+              method: "POST",
+              headers: {
+                authorization:
+                  "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJlQjFOdjc2OXU4IiwiX2lkIjoiNjZiODQ1NzYyN2E4NmM1YTJhZjc1MTYzIiwiZnVsbE5hbWUiOiJOIEkgUmltb24iLCJyb2xlIjoiQWRtaW4iLCJlbWFpbCI6Im5pcmltb25wY0BnbWFpbC5jb20iLCJwaG9uZU51bWJlciI6IjAxNzE1NDk0ODQ2IiwiaXNWZXJpZmllZCI6dHJ1ZSwiaWF0IjoxNzIzMzUyNTEwLCJleHAiOjE3MjM0Mzg5MTB9.C2-BR3bMwWcQ5gG-4n6oYx02JMa2C9j4kOPaBvyKPt0",
+              },
+              body: formData,
+              signal, // Pass the signal to the fetch request
+            }
+          );
 
-        const text = await res.text();
-        console.log("Raw response:", text);
+          const text = await res.text();
+          console.log("Raw response:", text);
 
-        let data;
-        if (text) {
-          try {
-            data = JSON.parse(text);
-          } catch (err) {
-            console.error("Failed to parse JSON:", err);
-            console.log("Response was:", text);
+          let data;
+          if (text) {
+            try {
+              data = JSON.parse(text);
+            } catch (err) {
+              console.error("Failed to parse JSON:", err);
+              console.log("Response was:", text);
+            }
+          } else {
+            console.log("No response body");
           }
-        } else {
-          console.log("No response body");
+
+          console.log(data);
+        } catch (err) {
+          if (err.name === "AbortError") {
+            console.log("Upload aborted");
+          } else {
+            console.error("Upload failed:", err);
+          }
         }
+      };
 
-        console.log(data);
+      const abortUpload = () => {
+        if (abortController) {
+          abortController.abort(); // Abort the ongoing fetch request
+        }
       };
 
       document.querySelector("form").addEventListener("submit", handleSubmit);
